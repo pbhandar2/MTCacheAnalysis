@@ -52,6 +52,10 @@ class MLExperiment:
         return copy_percentage_improve_list.sum()
 
 
+    def eval_regression_models(self):
+        pass 
+
+
     def eval_classification_models(self, models, predictions, y_test, percent_improve_list):
         model_eval_list = []
         potential_percent_list = []
@@ -62,7 +66,7 @@ class MLExperiment:
             cur_model_accuracy = model_row['Accuracy']
 
             # additional model metrics 
-            model_potential_loss = 0 
+            model_net_change = 0 
             false_negative_count, negative_count = 0, 0 
             false_positive_count, positive_count = 0, 0 
             for pred_index in range(len(cur_model_pred)):
@@ -73,12 +77,11 @@ class MLExperiment:
                     # misclassification 
                     if cur_target == 0:
                         # we added a tier when we should not have 
-                        model_potential_loss += abs(percent_improve_list[pred_index])
+                        model_net_change += percent_improve_list[pred_index]
                         false_positive_count += 1
                         negative_count += 1
                     else:
                         # we did not add a tier when we should have 
-                        model_potential_loss += percent_improve_list[pred_index]
                         false_negative_count += 1
                         positive_count += 1
                 else:
@@ -88,16 +91,20 @@ class MLExperiment:
                         negative_count += 1 
                     else:
                         # sucessfully added a tier 
+                        model_net_change += percent_improve_list[pred_index]
                         positive_count += 1
+            
 
-            potential_loss_ratio = model_potential_loss/max_potential_improve if max_potential_improve > 0 else np.inf 
+            #print("Net: {}, Max: {}".format(model_net_change, max_potential_improve))
+
+            potential_loss_ratio = model_net_change/max_potential_improve if max_potential_improve > 0 else np.inf 
             false_negative_rate = false_negative_count/positive_count if positive_count > 0 else np.inf 
             false_positive_rate = false_positive_count/negative_count if negative_count > 0 else np.inf 
 
             model_eval_list.append({
                 'model': cur_model,
                 'accuracy': cur_model_accuracy,
-                'potential_loss_ratio': potential_loss_ratio,
+                'net_change_ratio': potential_loss_ratio,
                 'false_negative_rate': false_negative_rate,
                 'false_positive_rate': false_positive_rate,
                 'true_positive_count': positive_count,
@@ -105,7 +112,7 @@ class MLExperiment:
             })
 
         df = pd.DataFrame(model_eval_list)
-        return df[df['potential_loss_ratio']==df['potential_loss_ratio'].min()].iloc[0]
+        return df[df['net_change_ratio']==df['net_change_ratio'].max()].iloc[0]
         
 
     def run(self):
@@ -122,7 +129,7 @@ class MLExperiment:
 
             out = self.eval_classification_models(models, predictions, test_y, test[:, -1])
             classification_result = {
-                'test': ','.join([str(_) for _ in test_workload_set]),
+                'test': '-'.join([str(_) for _ in test_workload_set]),
                 'train_size': len(train_x),
                 'test_size': len(test_x)
             }
@@ -133,8 +140,9 @@ class MLExperiment:
             print(classification_result)
         
         df = pd.DataFrame(classification_result_list)
+        print()
         print(df)
-        df.to_csv('ml_experiment_output.csv', index=False)
+        df.to_csv('./data/ml_experiment_output.csv', index=False)
 
 
 if __name__ == "__main__":
